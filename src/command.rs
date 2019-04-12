@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use std::path::Path;
 
+use nix::sys::signal::{self, Signal, SigHandler};
 use nix::sys::wait::{self, WaitStatus};
 use nix::unistd::{self, ForkResult};
 
@@ -23,6 +24,7 @@ pub fn run(bin: &Path, args: &[String]) -> u8 {
             }
         },
         Ok(ForkResult::Child) => {
+            unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
             nix::unistd::execv(&bin, &cargs).unwrap();
             panic!("Child did not exec!");
         },

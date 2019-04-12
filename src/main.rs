@@ -6,6 +6,8 @@ mod terminal;
 
 use std::os::unix::io::AsRawFd;
 
+use nix::sys::signal::{self, Signal, SigHandler};
+
 use common::{Event, Action};
 use shell::Shell;
 use terminal::{Terminal, TerminalState};
@@ -14,6 +16,8 @@ fn main() {
     let mut shell = Shell::new();
     let mut term = Terminal::new(std::io::stdin().as_raw_fd(), std::io::stdout().as_raw_fd());
     term.set_state(TerminalState::Custom);
+
+    unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
 
     'command: loop {
         term.write("» ".as_bytes());
