@@ -24,8 +24,11 @@ fn main() {
 
         'event: loop {
             let event = term.read();
-            let Event::Char(c) = event;
-            term.write_char(c);
+            match event {
+                Event::Char(c) => term.write_char(c),
+                Event::Return  => term.write_char('\n'),
+                _              => ()
+            }
 
             match shell.event(event) {
                 Action::Process => break 'event,

@@ -27,11 +27,11 @@ impl Parser {
     }
 
     pub fn args(&self) -> Vec<String> {
-        let mut args = Vec::new();
-        for item in &self.args {
-            args.push(item.clone());
-        }
-        args
+        self.args.iter().map(String::clone).collect()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.raw.is_empty()
     }
 
     fn parse(&mut self) {

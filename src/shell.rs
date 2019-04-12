@@ -23,11 +23,20 @@ impl Shell {
 
     pub fn event(&mut self, event: Event) -> Action {
         match event {
-            Event::Char('\n') => Action::Process,
             Event::Char(c) => {
                 self.parser.push(c);
                 Action::None
             },
+            Event::Return => Action::Process,
+            Event::Ctrl('D') => {
+                if self.parser.is_empty() {
+                    Action::Exit
+                } else {
+                    Action::None
+                }
+            },
+            _ => Action::None
+
         }
     }
 
