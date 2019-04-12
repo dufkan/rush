@@ -1,11 +1,16 @@
+mod common;
+mod parser;
+mod shell;
 mod terminal;
 
-use std::slice;
 use std::os::unix::io::AsRawFd;
 
+use common::{Event, Action};
+use shell::Shell;
 use terminal::{Terminal, TerminalState};
 
 fn main() {
+    let mut shell = Shell::new();
     let mut term = Terminal::new(std::io::stdin().as_raw_fd(), std::io::stdout().as_raw_fd());
     term.set_state(TerminalState::Custom);
 
@@ -14,12 +19,22 @@ fn main() {
 
         'event: loop {
             let event = term.read();
-            term.write(slice::from_ref(&event));
-            match event {
-                b'\n'   => break 'event,
-                b'\x1b' => break 'command,
-                _       => (),
-            }
+            let Event::Char(c) = event;
+            term.write_char(c);
+
+            match shell.event(event) {
+                Action::Process => break 'event,
+                Action::Exit    => break 'command,
+                _               => (),
+            };
+
         }
+
+        term.set_state(TerminalState::Initial);
+        match shell.process() {
+            Action::Exit => break,
+            _            => (),
+        };
+        term.set_state(TerminalState::Custom);
     }
 }

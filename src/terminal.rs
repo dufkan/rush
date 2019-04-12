@@ -4,6 +4,8 @@ use std::slice;
 use nix::sys::termios::{self, LocalFlags, InputFlags, SetArg};
 use nix::unistd;
 
+use super::common::Event;
+
 pub enum TerminalState {
     Initial,
     Custom,
@@ -45,10 +47,16 @@ impl Terminal {
         unistd::write(self.fd_out, bytes).unwrap();
     }
 
-    pub fn read(&mut self) -> u8 {
-        let mut byte = 0;
+    pub fn write_char(&mut self, c: char) {
+        let mut buff = [0; 4];
+        c.encode_utf8(&mut buff);
+        self.write(&buff);
+    }
+
+    pub fn read(&mut self) -> Event {
+        let mut byte = 0u8;
         unistd::read(self.fd_in, slice::from_mut(&mut byte)).unwrap();
-        byte
+        Event::Char(byte as char)
     }
 }
 
