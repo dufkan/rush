@@ -1,3 +1,4 @@
+mod command;
 mod common;
 mod parser;
 mod shell;
