@@ -47,6 +47,7 @@ impl Shell {
 
         if let Some(command) = command {
             let _retcode = match command.as_str() {
+                "cd" => command::cd(&args),
                 "exit" => return Action::Exit,
                 _      => {
                     if let Some(bin) = self.find_bin(&command) {
