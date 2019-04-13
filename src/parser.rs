@@ -1,20 +1,27 @@
+use std::collections::VecDeque;
+use std::iter::FromIterator;
+
 pub struct Parser {
-    raw: String,
+    raw: (VecDeque<char>, VecDeque<char>),
     args: Vec<String>,
 }
 
 impl Parser {
     pub fn new() -> Parser {
-        Parser { raw: String::new(), args: Vec::new() }
+        Parser { 
+            raw: (VecDeque::new(), VecDeque::new()),
+            args: Vec::new()
+        }
     }
 
     pub fn clear(&mut self) {
-        self.raw.clear();
+        self.raw.0.clear();
+        self.raw.1.clear();
         self.parse();
     }
 
     pub fn push(&mut self, c: char) {
-        self.raw.push(c);
+        self.raw.0.push_back(c);
         self.parse();
     }
 
@@ -31,23 +38,42 @@ impl Parser {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.raw.is_empty()
+        self.raw.0.is_empty() && self.raw.1.is_empty()
     }
 
     pub fn pop(&mut self) -> Option<char> {
-        self.raw.pop()
+        self.raw.0.pop_back()
     }
 
     pub fn raw(&self) -> String {
-        self.raw.clone()
+        String::from_iter(self.raw.0.iter().chain(self.raw.1.iter()))
     }
 
     pub fn set(&mut self, raw: String) {
-        self.raw = raw;
+        self.raw.0 = VecDeque::from_iter(raw.chars());
+        self.raw.1.clear();
         self.parse();
     }
 
+    pub fn left(&mut self) -> bool {
+        if let Some(c) = self.raw.0.pop_back() {
+            self.raw.1.push_front(c);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn right(&mut self) -> bool {
+        if let Some(c) = self.raw.1.pop_front() {
+            self.raw.0.push_back(c);
+            true
+        } else {
+            false
+        }
+    }
+
     fn parse(&mut self) {
-        self.args = self.raw.split_whitespace().map(String::from).collect();
+        self.args = self.raw().split_whitespace().map(String::from).collect();
     }
 }
