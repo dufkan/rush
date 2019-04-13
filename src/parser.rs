@@ -42,6 +42,11 @@ impl Parser {
         self.raw.clone()
     }
 
+    pub fn set(&mut self, raw: String) {
+        self.raw = raw;
+        self.parse();
+    }
+
     fn parse(&mut self) {
         self.args = self.raw.split_whitespace().map(String::from).collect();
     }

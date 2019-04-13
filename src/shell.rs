@@ -8,6 +8,8 @@ use super::parser::Parser;
 
 pub struct Shell {
     bin_dirs: Vec<String>,
+    history: Vec<String>,
+    history_idx: usize,
     parser: Parser,
 }
 
@@ -17,6 +19,8 @@ impl Shell {
         bin_dirs.push(String::from("/usr/bin/"));
         Shell {
             bin_dirs,
+            history: Vec::new(),
+            history_idx: 1,
             parser: Parser::new()
         }
     }
@@ -45,6 +49,25 @@ impl Shell {
             },
             Event::Ctrl('C') => {
                 self.parser.clear();
+                self.history_idx = self.history.len();
+                Action::ClearLine
+            },
+            Event::Up => {
+                if self.history_idx > 0 && self.history.len() > 0 {
+                    self.history_idx -= 1;
+                    self.parser.set(self.history[self.history_idx].clone());
+                } else {
+                    self.parser.clear();
+                }
+                Action::ClearLine
+            },
+            Event::Down => {
+                if self.history_idx < self.history.len() - 1 {
+                    self.history_idx += 1;
+                    self.parser.set(self.history[self.history_idx].clone());
+                } else {
+                    self.parser.clear()
+                }
                 Action::ClearLine
             },
             Event::Ctrl('L') => Action::ClearScreen,
@@ -56,6 +79,8 @@ impl Shell {
     pub fn process(&mut self) -> Action {
         let command = self.parser.command();
         let args = self.parser.args();
+        self.history.push(self.parser.raw());
+        self.history_idx = self.history.len();
         self.parser.clear();
 
         if let Some(command) = command {
