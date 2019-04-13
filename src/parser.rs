@@ -41,8 +41,12 @@ impl Parser {
         self.raw.0.is_empty() && self.raw.1.is_empty()
     }
 
-    pub fn pop(&mut self) -> Option<char> {
+    pub fn pop_prev(&mut self) -> Option<char> {
         self.raw.0.pop_back()
+    }
+
+    pub fn pop_next(&mut self) -> Option<char> {
+        self.raw.1.pop_front()
     }
 
     pub fn raw(&self) -> String {

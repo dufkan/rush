@@ -1,10 +1,16 @@
 use std::path::PathBuf;
 
 use nix::sys::stat;
+use termion::event::{Event, Key};
 
 use super::command;
-use super::common::{Event, Action};
 use super::parser::Parser;
+
+pub enum Action {
+    Process,
+    Exit,
+    ClearScreen,
+}
 
 pub struct Shell {
     bin_dirs: Vec<String>,
@@ -16,6 +22,7 @@ pub struct Shell {
 impl Shell {
     pub fn new() -> Shell {
         let mut bin_dirs = Vec::new();
+        bin_dirs.push(String::from("/bin/"));
         bin_dirs.push(String::from("/usr/bin/"));
         Shell {
             bin_dirs,
@@ -25,58 +32,58 @@ impl Shell {
         }
     }
 
-    pub fn event(&mut self, event: Event) -> Action {
+    pub fn event(&mut self, event: &Event) -> Option<Action> {
         match event {
-            Event::Char(c) => {
-                self.parser.push(c);
-                Action::None
-            },
-            Event::Return => Action::Process,
-            Event::Backspace => {
-                if !self.parser.is_empty() {
-                    self.parser.pop();
-                    Action::Back
-                } else {
-                    Action::None
-                }
-            },
-            Event::Ctrl('D') => {
-                if self.parser.is_empty() {
-                    Action::Exit
-                } else {
-                    Action::None
-                }
-            },
-            Event::Ctrl('C') => {
-                self.parser.clear();
-                self.history_idx = self.history.len();
-                Action::ClearLine
-            },
-            Event::Up => {
-                if self.history_idx > 0 && self.history.len() > 0 {
-                    self.history_idx -= 1;
-                    self.parser.set(self.history[self.history_idx].clone());
-                } else {
+            Event::Key(key) => match key {
+                Key::Char('\n') => Some(Action::Process),
+                Key::Char(c) => {
+                    self.parser.push(*c);
+                    None
+                },
+                Key::Ctrl('c') => {
                     self.parser.clear();
-                }
-                Action::ClearLine
+                    None
+                },
+                Key::Ctrl('d') => {
+                    if self.parser.is_empty() {
+                        Some(Action::Exit)
+                    } else {
+                        None
+                    }
+                },
+                Key::Backspace => {
+                    self.parser.pop_prev();
+                    None
+                },
+                Key::Delete => {
+                    self.parser.pop_next();
+                    None
+                },
+                Key::Ctrl('l') => Some(Action::ClearScreen),
+                Key::Up => {
+                    if self.history_idx > 0 && self.history.len() > 0 {
+                        self.history_idx -= 1;
+                        self.parser.set(self.history[self.history_idx].clone());
+                    }
+                    None
+                },
+                Key::Down => {
+                    if self.history_idx < self.history.len() - 1 {
+                        self.history_idx += 1;
+                        self.parser.set(self.history[self.history_idx].clone());
+                    } else {
+                        self.history_idx = self.history.len();
+                        self.parser.clear()
+                    }
+                    None
+                },
+                _ => None,
             },
-            Event::Down => {
-                if self.history_idx < self.history.len() - 1 {
-                    self.history_idx += 1;
-                    self.parser.set(self.history[self.history_idx].clone());
-                } else {
-                    self.parser.clear()
-                }
-                Action::ClearLine
-            },
-            Event::Ctrl('L') => Action::ClearScreen,
-            _ => Action::None
-
+            _ => None
         }
     }
 
-    pub fn process(&mut self) -> Action {
+    pub fn process(&mut self) -> Option<Action> {
         let command = self.parser.command();
         let args = self.parser.args();
         self.history.push(self.parser.raw());
@@ -86,7 +93,7 @@ impl Shell {
         if let Some(command) = command {
             let _retcode = match command.as_str() {
                 "cd" => command::cd(&args),
-                "exit" => return Action::Exit,
+                "exit" => return Some(Action::Exit),
                 _      => {
                     if let Some(bin) = self.find_bin(&command) {
                         command::run(&bin, &args)
@@ -98,7 +105,7 @@ impl Shell {
             };
         };
 
-        Action::None
+        None
     }
 
     pub fn line(&self) -> String {

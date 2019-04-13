@@ -1,59 +1,53 @@
 mod command;
-mod common;
 mod parser;
 mod shell;
-mod terminal;
 
-use std::os::unix::io::AsRawFd;
+use std::io::{Write};
 
 use nix::sys::signal::{self, Signal, SigHandler};
 
-use common::{Event, Action};
-use shell::Shell;
-use terminal::{Terminal, TerminalState};
+use shell::{Action, Shell};
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
 
 fn main() {
     let mut shell = Shell::new();
-    let mut term = Terminal::new(std::io::stdin().as_raw_fd(), std::io::stdout().as_raw_fd());
-    term.set_state(TerminalState::Custom);
-
     unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
 
     'command: loop {
-        term.write_bytes("» ".as_bytes());
-        term.write_bytes(shell.line().as_bytes());
+        let stdin = std::io::stdin();
+        let mut stdout = std::io::stdout().into_raw_mode().unwrap();
 
-        'event: loop {
-            let event = term.read();
-            match event {
-                Event::Char(c) => term.write_char(c),
-                Event::Return  => term.write_char('\n'),
-                _              => ()
+        print!("{}\r» {}", termion::clear::CurrentLine, shell.line());
+        stdout.flush().unwrap();
+
+        'event: for event in stdin.events() {
+
+            let event = event.unwrap();
+
+            if let Some(action) = shell.event(&event) {
+                match action {
+                    Action::Exit => break 'command,
+                    Action::Process => break 'event,
+                    Action::ClearScreen => print!("{}{}", termion::clear::All, termion::cursor::Goto(1,1)),
+                    _ => (),
+                }
             }
 
-            let action = shell.event(event);
-            match action {
-                Action::Back => term.write(action),
-                Action::ClearLine => {
-                    term.write(action);
-                    continue 'command;
-                },
-                Action::ClearScreen => {
-                    term.write(action);
-                    continue 'command;
-                },
-                Action::Process => break 'event,
-                Action::Exit => break 'command,
-                _ => (),
-            };
-
+            print!("{}\r» {}", termion::clear::CurrentLine, shell.line());
+            stdout.flush().unwrap();
         }
 
-        term.set_state(TerminalState::Initial);
-        match shell.process() {
-            Action::Exit => break,
-            _            => (),
-        };
-        term.set_state(TerminalState::Custom);
+        print!("\r\n");
+        stdout.flush().unwrap();
+
+        std::mem::drop(stdout);
+        if let Some(action) = shell.process() {
+            match action {
+                Action::Exit => break 'command,
+                Action::ClearScreen => print!("{}{}", termion::clear::All, termion::cursor::Goto(1,1)),
+                _ => (),
+            }
+        }
     }
 }
