@@ -24,4 +24,7 @@ pub enum Action {
     Process,
     Exit,
     None,
+    Back,
+    ClearLine,
+    ClearScreen,
 }

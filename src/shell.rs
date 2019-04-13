@@ -28,6 +28,14 @@ impl Shell {
                 Action::None
             },
             Event::Return => Action::Process,
+            Event::Backspace => {
+                if !self.parser.is_empty() {
+                    self.parser.pop();
+                    Action::Back
+                } else {
+                    Action::None
+                }
+            },
             Event::Ctrl('D') => {
                 if self.parser.is_empty() {
                     Action::Exit
@@ -35,6 +43,11 @@ impl Shell {
                     Action::None
                 }
             },
+            Event::Ctrl('C') => {
+                self.parser.clear();
+                Action::ClearLine
+            },
+            Event::Ctrl('L') => Action::ClearScreen,
             _ => Action::None
 
         }
@@ -61,6 +74,10 @@ impl Shell {
         };
 
         Action::None
+    }
+
+    pub fn line(&self) -> String {
+        self.parser.raw().clone()
     }
 
     fn find_bin(&self, command: &str) -> Option<PathBuf> {

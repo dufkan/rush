@@ -20,7 +20,8 @@ fn main() {
     unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
 
     'command: loop {
-        term.write("» ".as_bytes());
+        term.write_bytes("» ".as_bytes());
+        term.write_bytes(shell.line().as_bytes());
 
         'event: loop {
             let event = term.read();
@@ -30,10 +31,20 @@ fn main() {
                 _              => ()
             }
 
-            match shell.event(event) {
+            let action = shell.event(event);
+            match action {
+                Action::Back => term.write(action),
+                Action::ClearLine => {
+                    term.write(action);
+                    continue 'command;
+                },
+                Action::ClearScreen => {
+                    term.write(action);
+                    continue 'command;
+                },
                 Action::Process => break 'event,
-                Action::Exit    => break 'command,
-                _               => (),
+                Action::Exit => break 'command,
+                _ => (),
             };
 
         }

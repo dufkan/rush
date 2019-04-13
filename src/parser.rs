@@ -34,6 +34,14 @@ impl Parser {
         self.raw.is_empty()
     }
 
+    pub fn pop(&mut self) -> Option<char> {
+        self.raw.pop()
+    }
+
+    pub fn raw(&self) -> String {
+        self.raw.clone()
+    }
+
     fn parse(&mut self) {
         self.args = self.raw.split_whitespace().map(String::from).collect();
     }

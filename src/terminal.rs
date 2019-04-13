@@ -5,7 +5,7 @@ use std::str;
 use nix::sys::termios::{self, LocalFlags, InputFlags, SetArg};
 use nix::unistd;
 
-use super::common::Event;
+use super::common::{Action, Event};
 
 pub enum TerminalState {
     Initial,
@@ -44,14 +44,23 @@ impl Terminal {
         termios::tcsetattr(self.fd_in, SetArg::TCSANOW, termios_next).unwrap();
     }
 
-    pub fn write(&mut self, bytes: &[u8]) {
+    pub fn write(&mut self, action: Action) {
+        match action {
+            Action::Back => self.write_bytes(b"\x08 \x08"),
+            Action::ClearLine => self.write_bytes(b"\x1b[2K\x1b[G"),
+            Action::ClearScreen => self.write_bytes(b"\x1bc\x1b[2J\x1b[G"),
+            _ => panic!("Cannot write such action."),
+        }
+    }
+
+    pub fn write_bytes(&mut self, bytes: &[u8]) {
         unistd::write(self.fd_out, bytes).unwrap();
     }
 
     pub fn write_char(&mut self, c: char) {
         let mut buff = [0; 4];
         c.encode_utf8(&mut buff);
-        self.write(&buff);
+        self.write_bytes(&buff);
     }
 
     pub fn read(&mut self) -> Event {
