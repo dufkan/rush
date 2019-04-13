@@ -37,7 +37,10 @@ pub fn run(bin: &Path, args: &[String]) -> u8 {
 
 pub fn cd(args: &[String]) -> u8 {
     let path = match args.len() {
-        1 => "~",
+        1 => {
+            eprintln!("cd: Not enough arguments.");
+            return 1;
+        },
         2 => args[1].as_str(),
         _ => {
             eprintln!("cd: Too many arguments.");
