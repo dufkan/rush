@@ -77,6 +77,10 @@ impl Parser {
         }
     }
 
+    pub fn position(&self) -> usize {
+        self.raw.1.len()
+    }
+
     fn parse(&mut self) {
         self.args = self.raw().split_whitespace().map(String::from).collect();
     }

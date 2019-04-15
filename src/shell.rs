@@ -1,3 +1,4 @@
+use std::iter::FromIterator;
 use std::path::PathBuf;
 
 use nix::sys::stat;
@@ -17,6 +18,7 @@ pub struct Shell {
     history: Vec<String>,
     history_idx: usize,
     parser: Parser,
+    prompt: String,
 }
 
 impl Shell {
@@ -24,11 +26,14 @@ impl Shell {
         let mut bin_dirs = Vec::new();
         bin_dirs.push(String::from("/bin/"));
         bin_dirs.push(String::from("/usr/bin/"));
+        let prompt = String::from("» ");
+
         Shell {
             bin_dirs,
             history: Vec::new(),
             history_idx: 1,
-            parser: Parser::new()
+            parser: Parser::new(),
+            prompt,
         }
     }
 
@@ -77,6 +82,14 @@ impl Shell {
                     }
                     None
                 },
+                Key::Left => {
+                    self.parser.left();
+                    None
+                },
+                Key::Right => {
+                    self.parser.right();
+                    None
+                }
                 _ => None,
             },
             _ => None
@@ -108,8 +121,8 @@ impl Shell {
         None
     }
 
-    pub fn line(&self) -> String {
-        self.parser.raw().clone()
+    pub fn line(&self) -> (String, usize) {
+        (String::from_iter(self.prompt.chars().chain(self.parser.raw().chars())), self.parser.position())
     }
 
     fn find_bin(&self, command: &str) -> Option<PathBuf> {
