@@ -1,4 +1,3 @@
-use std::iter::FromIterator;
 use std::path::PathBuf;
 
 use nix::sys::stat;
@@ -73,7 +72,7 @@ impl Shell {
                     None
                 },
                 Key::Down => {
-                    if self.history_idx < self.history.len() - 1 {
+                    if self.history_idx + 1 < self.history.len() {
                         self.history_idx += 1;
                         self.parser.set(self.history[self.history_idx].clone());
                     } else {
@@ -121,8 +120,16 @@ impl Shell {
         None
     }
 
-    pub fn line(&self) -> (String, usize) {
-        (String::from_iter(self.prompt.chars().chain(self.parser.raw().chars())), self.parser.position())
+    pub fn prompt(&self) -> String {
+        self.prompt.clone()
+    }
+
+    pub fn line(&self) -> String {
+        self.parser.raw()
+    }
+
+    pub fn position(&self) -> usize {
+        self.parser.position()
     }
 
     fn find_bin(&self, command: &str) -> Option<PathBuf> {

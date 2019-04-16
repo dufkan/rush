@@ -19,24 +19,29 @@ extern fn handle_sigwinch(_: nix::libc::c_int) {
     unsafe { TERM_SIZE.store(new_size, atomic::Ordering::Relaxed); }
 }
 
-/// Prints terminal line with current input
+/// Prints terminal prompt
 /// 
-/// Moves cursor up by `prev_cursor_line` lines, prints `line`, positions cursor
-/// back by `position` characters.
-fn print_line(line: &str, position: usize, prev_cursor_line: usize) -> usize {
-    if prev_cursor_line > 0 {
-        print!("{}", termion::cursor::Up(prev_cursor_line as u16));
+/// Nothing more.
+fn print_prompt(prompt: &str) {
+    print!("\r{}", prompt);
+}
+
+/// Prints current terminal input
+/// 
+/// Moves cursor back by `prev_position`, prints `line`, positions cursor back
+/// by `position` characters.
+fn print_line(line: &str, position: usize, prev_position: usize) -> usize {
+    for _ in 0..prev_position {
+        print!("\x08");
     }
 
-    print!("\r{} {}\x08", line, termion::clear::AfterCursor);
+    print!("{}{} \x08", termion::clear::AfterCursor, line);
 
     for _ in 0..position {
         print!("\x08");
     }
 
-    let width = unsafe { (TERM_SIZE.load(atomic::Ordering::Relaxed) >> 16) as usize };
-    let len = line.len() - 1;
-    (len - position) / width
+    line.len() - position
 }
 
 fn main() {
@@ -46,35 +51,37 @@ fn main() {
     unsafe { signal::signal(Signal::SIGWINCH, SigHandler::Handler(handle_sigwinch)) }.unwrap();
     handle_sigwinch(0);
 
-    let mut cursor_line = 0;
 
     'command: loop {
         let stdin = std::io::stdin();
         let mut stdout = std::io::stdout().into_raw_mode().unwrap();
 
-        let (line, position) = shell.line();
-        cursor_line = print_line(&line, position, cursor_line);
+        print_prompt(&shell.prompt());
+        let mut prev_position = print_line(&shell.line(), shell.position(), 0);
         stdout.flush().unwrap();
 
         'event: for event in stdin.events() {
-
             let event = event.unwrap();
 
             if let Some(action) = shell.event(&event) {
                 match action {
-                    Action::Exit => break 'command,
+                    Action::Exit => {
+                        break 'command
+                        print!("\r\n");
+                    },
                     Action::Process => break 'event,
-                    Action::ClearScreen => print!("{}{}", termion::clear::All, termion::cursor::Goto(1,1)),
-                    _ => (),
+                    Action::ClearScreen => {
+                        print!("{}{}", termion::clear::All, termion::cursor::Goto(1,1));
+                        continue 'command;
+                    },
                 }
             }
 
-            let (line, position) = shell.line();
-            cursor_line = print_line(&line, position, cursor_line);
+            prev_position = print_line(&shell.line(), shell.position(), prev_position);
             stdout.flush().unwrap();
         }
 
-        cursor_line = 0;
+        print_line(&shell.line(), 0, prev_position);
         print!("\r\n");
         stdout.flush().unwrap();
 
