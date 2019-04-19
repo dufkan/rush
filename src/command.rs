@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::path::Path;
 
@@ -64,4 +65,11 @@ pub fn cd(args: &[String]) -> u8 {
     } else {
         0
     }
+}
+
+pub fn vars(_args: &[String], vars: &HashMap<String, String>) -> u8 {
+    for var in vars {
+        println!("{}={}", var.0, var.1);
+    }
+    0
 }

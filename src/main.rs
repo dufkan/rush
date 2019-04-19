@@ -1,5 +1,5 @@
 mod command;
-mod parser;
+mod processor;
 mod shell;
 
 use std::io::Write;
@@ -86,12 +86,7 @@ fn main() {
         stdout.flush().unwrap();
 
         std::mem::drop(stdout);
-        if let Some(action) = shell.process() {
-            match action {
-                Action::Exit => break 'command,
-                Action::ClearScreen => print!("{}{}", termion::clear::All, termion::cursor::Goto(1,1)),
-                _ => (),
-            }
-        }
+
+        shell.process();
     }
 }

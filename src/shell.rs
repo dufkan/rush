@@ -1,10 +1,11 @@
 use std::path::PathBuf;
+use std::collections::HashMap;
 
 use nix::sys::stat;
 use termion::event::{Event, Key};
 
 use super::command;
-use super::parser::Parser;
+use super::processor::{Processor, Sequence, SequenceKind, Command, CommandKind, Atom, AtomKind};
 
 pub enum Action {
     Process,
@@ -16,8 +17,9 @@ pub struct Shell {
     bin_dirs: Vec<String>,
     history: Vec<String>,
     history_idx: usize,
-    parser: Parser,
+    processor: Processor,
     prompt: String,
+    vars: HashMap<String, String>,
 }
 
 impl Shell {
@@ -31,8 +33,9 @@ impl Shell {
             bin_dirs,
             history: Vec::new(),
             history_idx: 1,
-            parser: Parser::new(),
+            processor: Processor::new(),
             prompt,
+            vars: HashMap::new()
         }
     }
 
@@ -41,52 +44,52 @@ impl Shell {
             Event::Key(key) => match key {
                 Key::Char('\n') => Some(Action::Process),
                 Key::Char(c) => {
-                    self.parser.push(*c);
+                    self.processor.push(*c);
                     None
                 },
                 Key::Ctrl('c') => {
-                    self.parser.clear();
+                    self.processor.clear();
                     None
                 },
                 Key::Ctrl('d') => {
-                    if self.parser.is_empty() {
+                    if self.processor.is_empty() {
                         Some(Action::Exit)
                     } else {
                         None
                     }
                 },
                 Key::Backspace => {
-                    self.parser.pop_prev();
+                    self.processor.pop_prev();
                     None
                 },
                 Key::Delete => {
-                    self.parser.pop_next();
+                    self.processor.pop_next();
                     None
                 },
                 Key::Ctrl('l') => Some(Action::ClearScreen),
                 Key::Up => {
                     if self.history_idx > 0 && self.history.len() > 0 {
                         self.history_idx -= 1;
-                        self.parser.set(self.history[self.history_idx].clone());
+                        self.processor.set(self.history[self.history_idx].clone());
                     }
                     None
                 },
                 Key::Down => {
                     if self.history_idx + 1 < self.history.len() {
                         self.history_idx += 1;
-                        self.parser.set(self.history[self.history_idx].clone());
+                        self.processor.set(self.history[self.history_idx].clone());
                     } else {
                         self.history_idx = self.history.len();
-                        self.parser.clear()
+                        self.processor.clear()
                     }
                     None
                 },
                 Key::Left => {
-                    self.parser.left();
+                    self.processor.left();
                     None
                 },
                 Key::Right => {
-                    self.parser.right();
+                    self.processor.right();
                     None
                 }
                 _ => None,
@@ -95,29 +98,68 @@ impl Shell {
         }
     }
 
-    pub fn process(&mut self) -> Option<Action> {
-        let command = self.parser.command();
-        let args = self.parser.args();
-        self.history.push(self.parser.raw());
+    pub fn process(&mut self) -> usize {
+        let sequence = self.processor.get().get();
+        self.history.push(self.processor.raw());
         self.history_idx = self.history.len();
-        self.parser.clear();
+        self.processor.clear();
 
-        if let Some(command) = command {
-            let _retcode = match command.as_str() {
-                "cd" => command::cd(&args),
-                "exit" => return Some(Action::Exit),
-                _      => {
-                    if let Some(bin) = self.find_bin(&command) {
-                        command::run(&bin, &args)
-                    } else {
-                        eprintln!("rush: Unknown command.");
-                        1
-                    }
+        let mut retcode = 0;
+        for command in sequence {
+            retcode = match command.1.kind() {
+                CommandKind::Execute => self.process_execute(command.1.atoms()),
+                CommandKind::Assign => self.process_assign(command.1.atoms()),
+            }
+        }
+        retcode
+    }
+
+    fn process_execute(&mut self, atoms: Vec<Atom>) -> usize {
+        let args: Vec<_> = atoms.iter()
+            .map(|atom| {
+                if let AtomKind::Word(word) = atom.kind() {
+                    Some(word)
+                } else {
+                    None
                 }
-            };
-        };
+            })
+            .filter(Option::is_some)
+            .map(Option::unwrap)
+            .collect();
+        if args.is_empty() {
+            return 0;
+        }
 
-        None
+        match args.first().unwrap().as_str() {
+            "cd" => command::cd(&args) as usize,
+            "vars" => command::vars(&args, &self.vars) as usize,
+            command => {
+                if let Some(bin) = self.find_bin(command) {
+                    command::run(&bin, &args) as usize
+                } else {
+                    eprintln!("rush: Unknown command.");
+                    1
+                }
+            }
+        }
+    }
+
+    fn process_assign(&mut self, atoms: Vec<Atom>) -> usize {
+        let args: Vec<_> = atoms.iter()
+            .map(|atom| {
+                if let AtomKind::Word(word) = atom.kind() {
+                    Some(word)
+                } else {
+                    None
+                }
+            })
+            .filter(Option::is_some)
+            .map(Option::unwrap)
+            .collect();
+        let mut args = args.into_iter();
+
+        self.vars.insert(args.next().unwrap(), args.next().unwrap());
+        0
     }
 
     pub fn prompt(&self) -> String {
@@ -125,11 +167,11 @@ impl Shell {
     }
 
     pub fn line(&self) -> String {
-        self.parser.raw()
+        self.processor.raw()
     }
 
     pub fn position(&self) -> usize {
-        self.parser.position()
+        self.processor.position()
     }
 
     fn find_bin(&self, command: &str) -> Option<PathBuf> {
