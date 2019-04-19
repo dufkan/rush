@@ -24,10 +24,15 @@ pub struct Shell {
 
 impl Shell {
     pub fn new() -> Shell {
-        let mut bin_dirs = Vec::new();
-        bin_dirs.push(String::from("/bin/"));
-        bin_dirs.push(String::from("/usr/bin/"));
         let prompt = String::from("» ");
+        let vars: HashMap<_, _> = std::env::vars().collect();
+
+        let mut bin_dirs = Vec::new();
+        bin_dirs.push(String::from("/bin"));
+        bin_dirs.push(String::from("/usr/bin"));
+        if let Some(path) = vars.get("PATH") {
+            bin_dirs.extend(path.split(":").map(String::from).collect::<Vec<_>>());
+        }
 
         Shell {
             bin_dirs,
@@ -35,7 +40,7 @@ impl Shell {
             history_idx: 1,
             processor: Processor::new(),
             prompt,
-            vars: HashMap::new()
+            vars
         }
     }
 
@@ -132,10 +137,10 @@ impl Shell {
 
         match args.first().unwrap().as_str() {
             "cd" => command::cd(&args) as usize,
-            "vars" => command::vars(&args, &self.vars) as usize,
+            "self" => command::state(&args, &self.vars, &self.bin_dirs) as usize,
             command => {
                 if let Some(bin) = self.find_bin(command) {
-                    command::run(&bin, &args) as usize
+                    command::run(&bin, &args, &self.vars) as usize
                 } else {
                     eprintln!("rush: Unknown command.");
                     1

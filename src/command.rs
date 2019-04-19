@@ -7,13 +7,16 @@ use nix::sys::signal::{self, Signal, SigHandler};
 use nix::sys::wait::{self, WaitStatus};
 use nix::unistd::{self, ForkResult};
 
-pub fn run(bin: &Path, args: &[String]) -> u8 {
+pub fn run(bin: &Path, args: &[String], vars: &HashMap<String, String>) -> u8 {
+    let bin = CString::new(bin.to_str().unwrap()).unwrap();
     let cargs: Vec<_> = args.iter()
         .map(String::clone)
         .map(CString::new)
         .map(Result::unwrap)
         .collect();
-    let bin = CString::new(bin.to_str().unwrap()).unwrap();
+    let cvars: Vec<_> = vars.iter()
+        .map(|var| CString::new(format!("{}={}", var.0, var.1)).unwrap())
+        .collect();
 
     match unistd::fork() {
         Ok(ForkResult::Parent { child, .. }) => {
@@ -27,7 +30,7 @@ pub fn run(bin: &Path, args: &[String]) -> u8 {
         },
         Ok(ForkResult::Child) => {
             unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
-            nix::unistd::execv(&bin, &cargs).unwrap();
+            nix::unistd::execve(&bin, &cargs, &cvars).unwrap();
             panic!("Child did not exec!");
         },
         Err(_) => {
@@ -67,9 +70,31 @@ pub fn cd(args: &[String]) -> u8 {
     }
 }
 
-pub fn vars(_args: &[String], vars: &HashMap<String, String>) -> u8 {
+pub fn state(args: &[String], vars: &HashMap<String, String>, bin_dirs: &Vec<String>) -> u8 {
+    if args.len() == 2 {
+        match args.get(1).unwrap().as_str() {
+            "vars" => state_vars(vars),
+            "bin" | "bin_dirs" => state_bin_dirs(bin_dirs),
+            _ => eprintln!("{}: Unknown option. ", args.get(0).unwrap()),
+        };
+    } else {
+        println!("VARS");
+        state_vars(vars);
+        println!("\nBIN_DIRS");
+        state_bin_dirs(bin_dirs);
+    }
+    0
+
+}
+
+fn state_vars(vars: &HashMap<String, String>) {
     for var in vars {
         println!("{}={}", var.0, var.1);
     }
-    0
+}
+
+fn state_bin_dirs(bin_dirs: &Vec<String>) {
+    for dir in bin_dirs {
+        println!("{}", dir);
+    }
 }
