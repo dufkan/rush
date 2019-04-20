@@ -111,6 +111,11 @@ impl Shell {
 
         let mut retcode = 0;
         for command in sequence {
+            match command.0 {
+                SequenceKind::And if retcode != 0 => continue,
+                SequenceKind::Or if retcode == 0 => continue,
+                _ => (),
+            }
             retcode = match command.1.kind() {
                 CommandKind::Execute => self.process_execute(command.1.atoms()),
                 CommandKind::Assign => self.process_assign(command.1.atoms()),

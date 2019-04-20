@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::iter::{Iterator, FromIterator};
 
 use pest::Parser;
+use pest::iterators::Pair;
 use pest_derive::Parser;
 
 #[derive(Parser)]
@@ -56,9 +57,11 @@ impl Command {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum SequenceKind {
     Seq,
+    And,
+    Or
 }
 
 #[derive(Clone, Debug)]
@@ -71,8 +74,8 @@ impl Sequence {
         Sequence { commands: Vec::new() }
     }
 
-    pub fn seq(&mut self, command: Command) {
-        self.commands.push((SequenceKind::Seq, command))
+    pub fn add(&mut self, seq: SequenceKind, command: Command) {
+        self.commands.push((seq, command))
     }
 
     pub fn get(self) -> Vec<(SequenceKind, Command)> {
@@ -113,11 +116,15 @@ impl Processor {
     }
 
     pub fn pop_prev(&mut self) -> Option<char> {
-        self.raw.0.pop_back()
+        let popped = self.raw.0.pop_back();
+        self.parse();
+        popped
     }
 
     pub fn pop_next(&mut self) -> Option<char> {
-        self.raw.1.pop_front()
+        let popped = self.raw.1.pop_front();
+        self.parse();
+        popped
     }
 
     pub fn raw(&self) -> String {
@@ -153,19 +160,35 @@ impl Processor {
     }
 
     pub fn parse(&mut self) {
-        self.parsed = self.parse_bash()
+        self.parsed = Self::parse_bash(self.raw())
     }
 
-    fn parse_bash(&mut self) -> Sequence {
-        let input = self.raw();
+    fn parse_bash(input: String) -> Sequence {
         let mut sequence = Sequence::new();
         let parsed = BashParser::parse(Rule::line, &input);
         if parsed.is_err() {
             return sequence;
         }
 
-        let mut line = parsed.unwrap().next().unwrap().into_inner();
-        let command = line.next().unwrap().into_inner().next().unwrap();
+        let mut seq = SequenceKind::Seq;
+
+        for pair in parsed.unwrap() {
+            match pair.as_rule() {
+                Rule::command => sequence.add(seq, Self::parse_bash_command(pair)),
+                Rule::separator => {
+                    seq = Self::parse_bash_separator(pair);
+                },
+                Rule::EOI => (),
+                _ => unreachable!(),
+            }
+        }
+
+        sequence
+    }
+
+    fn parse_bash_command(command: Pair<Rule>) -> Command {
+        assert!(command.as_rule() == Rule::command);
+        let command = command.into_inner().next().unwrap();
         match command.as_rule() {
             Rule::execute => {
                 let atoms: Vec<_> = command.into_inner()
@@ -178,7 +201,7 @@ impl Processor {
                         )
                     })
                     .collect();
-                sequence.seq(Command::new(CommandKind::Execute, atoms));
+                    Command::new(CommandKind::Execute, atoms)
             },
             Rule::assign => {
                 let atoms: Vec<_> = command.into_inner()
@@ -191,10 +214,19 @@ impl Processor {
                         )
                     })
                     .collect();
-                sequence.seq(Command::new(CommandKind::Assign, atoms));
+                    Command::new(CommandKind::Assign, atoms)
             },
             _ => unreachable!(),
-        };
-        sequence
+        }
+    }
+
+    fn parse_bash_separator(separator: Pair<Rule>) -> SequenceKind {
+        assert!(separator.as_rule() == Rule::separator);
+        match separator.as_str() {
+            ";" => SequenceKind::Seq,
+            "||" => SequenceKind::Or,
+            "&&" => SequenceKind::And,
+            _ => unreachable!(),
+        }
     }
 }

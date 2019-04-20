@@ -1,5 +1,5 @@
-WHITESPACE = _{ " " | "\t" }
-separator = { "\n" | ";" | "&&" | "||" }
+WHITESPACE = _{ " " | "\t" | "\n" }
+separator = { ";" | "&&" | "||" }
 
 word = @{ (!(WHITESPACE | separator) ~ ANY)+ }
 var = @{ LETTER ~ (LETTER | NUMBER)* }
@@ -8,4 +8,4 @@ assign = ${ var ~ "=" ~ word }
 execute = { word+ }
 
 command = { (assign | execute) }
-line = { SOI ~ command ~ EOI }
+line = _{ SOI ~ command ~ (separator ~ command)* ~ ";"? ~ EOI }
