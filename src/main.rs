@@ -1,3 +1,4 @@
+mod config;
 mod command;
 mod processor;
 mod shell;

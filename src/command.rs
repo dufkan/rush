@@ -7,6 +7,9 @@ use nix::sys::signal::{self, Signal, SigHandler};
 use nix::sys::wait::{self, WaitStatus};
 use nix::unistd::{self, ForkResult};
 
+use super::config::Config;
+use super::shell::Shell;
+
 pub fn run(bin: &Path, args: &[String], vars: &HashMap<String, String>) -> u8 {
     let bin = CString::new(bin.to_str().unwrap()).unwrap();
     let cargs: Vec<_> = args.iter()
@@ -70,18 +73,21 @@ pub fn cd(args: &[String]) -> u8 {
     }
 }
 
-pub fn state(args: &[String], vars: &HashMap<String, String>, bin_dirs: &Vec<String>) -> u8 {
+pub fn state(args: &[String], shell: &Shell) -> u8 {
     if args.len() == 2 {
         match args.get(1).unwrap().as_str() {
-            "vars" => state_vars(vars),
-            "bin" | "bin_dirs" => state_bin_dirs(bin_dirs),
+            "vars" => state_vars(shell.vars()),
+            "bin" | "bin_dirs" => state_bin_dirs(shell.bin_dirs()),
+            "config" => state_config(shell.config()),
             _ => eprintln!("{}: Unknown option. ", args.get(0).unwrap()),
         };
     } else {
         println!("VARS");
-        state_vars(vars);
+        state_vars(shell.vars());
         println!("\nBIN_DIRS");
-        state_bin_dirs(bin_dirs);
+        state_bin_dirs(shell.bin_dirs());
+        println!("\nCONFIG");
+        state_config(shell.config());
     }
     0
 
@@ -97,4 +103,8 @@ fn state_bin_dirs(bin_dirs: &Vec<String>) {
     for dir in bin_dirs {
         println!("{}", dir);
     }
+}
+
+fn state_config(config: &Config) {
+    print!("{}", config.to_string());
 }

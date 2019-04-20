@@ -1,11 +1,13 @@
 use std::path::PathBuf;
 use std::collections::HashMap;
 
+use directories::ProjectDirs;
 use nix::sys::stat;
 use termion::event::{Event, Key};
 
 use super::command;
-use super::processor::{Processor, Sequence, SequenceKind, Command, CommandKind, Atom, AtomKind};
+use super::config::Config;
+use super::processor::{Processor, SequenceKind, CommandKind, Atom, AtomKind};
 
 pub enum Action {
     Process,
@@ -14,6 +16,7 @@ pub enum Action {
 }
 
 pub struct Shell {
+    config: Config,
     bin_dirs: Vec<String>,
     history: Vec<String>,
     history_idx: usize,
@@ -24,17 +27,30 @@ pub struct Shell {
 
 impl Shell {
     pub fn new() -> Shell {
-        let prompt = String::from("» ");
-        let vars: HashMap<_, _> = std::env::vars().collect();
+        let config = if let Some(project_dirs) = ProjectDirs::from("", "", "rush") {
+            Config::load(&project_dirs.config_dir().join("config.toml"))
+        } else {
+            Config::default()  
+        };
 
-        let mut bin_dirs = Vec::new();
-        bin_dirs.push(String::from("/bin"));
-        bin_dirs.push(String::from("/usr/bin"));
-        if let Some(path) = vars.get("PATH") {
-            bin_dirs.extend(path.split(":").map(String::from).collect::<Vec<_>>());
+        let vars = if config.respect_vars {
+            std::env::vars().collect()
+        } else {
+            HashMap::new()
+        };
+
+        let mut bin_dirs = config.bin_dirs.clone();
+
+        if config.respect_path {
+            if let Some(path) = vars.get("PATH") {
+                bin_dirs.extend(path.split(":").map(String::from).collect::<Vec<_>>());
+            }
         }
 
+        let prompt = config.prompt.clone();
+
         Shell {
+            config,
             bin_dirs,
             history: Vec::new(),
             history_idx: 1,
@@ -124,14 +140,23 @@ impl Shell {
         retcode
     }
 
+    pub fn vars(&self) -> &HashMap<String, String> {
+        &self.vars
+    }
+
+    pub fn bin_dirs(&self) -> &Vec<String> {
+        &self.bin_dirs
+    }
+
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     fn process_execute(&mut self, atoms: Vec<Atom>) -> usize {
         let args: Vec<_> = atoms.iter()
             .map(|atom| {
-                if let AtomKind::Word(word) = atom.kind() {
-                    Some(word)
-                } else {
-                    None
-                }
+                let AtomKind::Word(word) = atom.kind();
+                Some(word)
             })
             .filter(Option::is_some)
             .map(Option::unwrap)
@@ -142,7 +167,7 @@ impl Shell {
 
         match args.first().unwrap().as_str() {
             "cd" => command::cd(&args) as usize,
-            "self" => command::state(&args, &self.vars, &self.bin_dirs) as usize,
+            "self" => command::state(&args, &self) as usize,
             command => {
                 if let Some(bin) = self.find_bin(command) {
                     command::run(&bin, &args, &self.vars) as usize
@@ -157,11 +182,8 @@ impl Shell {
     fn process_assign(&mut self, atoms: Vec<Atom>) -> usize {
         let args: Vec<_> = atoms.iter()
             .map(|atom| {
-                if let AtomKind::Word(word) = atom.kind() {
-                    Some(word)
-                } else {
-                    None
-                }
+                let AtomKind::Word(word) = atom.kind();
+                Some(word)
             })
             .filter(Option::is_some)
             .map(Option::unwrap)
