@@ -1,46 +1,10 @@
 use std::collections::HashMap;
-use std::ffi::CString;
-use std::path::Path;
 
 use nix::errno::{self, Errno};
-use nix::sys::signal::{self, Signal, SigHandler};
-use nix::sys::wait::{self, WaitStatus};
-use nix::unistd::{self, ForkResult};
+use nix::unistd;
 
 use super::config::Config;
-use super::shell::Shell;
-
-pub fn run(bin: &Path, args: &[String], vars: &HashMap<String, String>) -> u8 {
-    let bin = CString::new(bin.to_str().unwrap()).unwrap();
-    let cargs: Vec<_> = args.iter()
-        .map(String::clone)
-        .map(CString::new)
-        .map(Result::unwrap)
-        .collect();
-    let cvars: Vec<_> = vars.iter()
-        .map(|var| CString::new(format!("{}={}", var.0, var.1)).unwrap())
-        .collect();
-
-    match unistd::fork() {
-        Ok(ForkResult::Parent { child, .. }) => {
-            let status = wait::waitpid(child, None).unwrap();
-            match status {
-                WaitStatus::Exited(_, retcode) => {
-                    retcode as u8
-                },
-                _ => 0,
-            }
-        },
-        Ok(ForkResult::Child) => {
-            unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
-            nix::unistd::execve(&bin, &cargs, &cvars).unwrap();
-            panic!("Child did not exec!");
-        },
-        Err(_) => {
-            panic!("Fork failed!");
-        },
-    }
-}
+use super::SHELL;
 
 pub fn cd(args: &[String]) -> u8 {
     let path = match args.len() {
@@ -73,7 +37,8 @@ pub fn cd(args: &[String]) -> u8 {
     }
 }
 
-pub fn state(args: &[String], shell: &Shell) -> u8 {
+pub fn state(args: &[String]) -> u8 {
+    let shell = unsafe { SHELL.as_ref().unwrap() };
     if args.len() == 2 {
         match args.get(1).unwrap().as_str() {
             "vars" => state_vars(shell.vars()),
@@ -90,7 +55,6 @@ pub fn state(args: &[String], shell: &Shell) -> u8 {
         state_config(shell.config());
     }
     0
-
 }
 
 fn state_vars(vars: &HashMap<String, String>) {
@@ -107,4 +71,9 @@ fn state_bin_dirs(bin_dirs: &Vec<String>) {
 
 fn state_config(config: &Config) {
     print!("{}", config.to_string());
+}
+
+pub fn fail(args: &[String]) -> u8 {
+    eprintln!("rush: Unknown command {}.", args[0]);
+    1
 }

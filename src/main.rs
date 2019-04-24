@@ -1,5 +1,6 @@
 mod config;
-mod command;
+mod builtin;
+mod executor;
 mod processor;
 mod shell;
 
@@ -13,6 +14,7 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 static mut TERM_SIZE: AtomicU32 = AtomicU32::new(0);
+static mut SHELL: Option<Shell> = None;
 
 extern fn handle_sigwinch(_: nix::libc::c_int) {
     let new_size = termion::terminal_size().unwrap();
@@ -46,12 +48,11 @@ fn print_line(line: &str, position: usize, prev_position: usize) -> usize {
 }
 
 fn main() {
-    let mut shell = Shell::new();
-
     unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();
     unsafe { signal::signal(Signal::SIGWINCH, SigHandler::Handler(handle_sigwinch)) }.unwrap();
+    unsafe { SHELL = Some(Shell::new()) };
     handle_sigwinch(0);
-
+    let shell = unsafe { SHELL.as_mut().unwrap() };
 
     'command: loop {
         let stdin = std::io::stdin();

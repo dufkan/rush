@@ -1,11 +1,11 @@
 WHITESPACE = _{ " " | "\t" | "\n" }
 separator = { ";" | "&&" | "||" }
-
-word = @{ (!(WHITESPACE | separator) ~ ANY)+ }
+redirect = { "|" | ">" | "<" }
+word = @{ (!(WHITESPACE | separator | redirect) ~ ANY)+ }
 var = @{ LETTER ~ (LETTER | NUMBER)* }
 
 assign = ${ var ~ "=" ~ word }
-execute = { word+ }
+execute = { word ~ (redirect? ~ word)* }
 
 command = { (assign | execute) }
 line = _{ SOI ~ command ~ (separator ~ command)* ~ ";"? ~ EOI }

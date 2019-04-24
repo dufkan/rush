@@ -12,6 +12,7 @@ struct BashParser;
 #[derive(Clone, Debug)]
 pub enum AtomKind {
     Word(String),
+    Pipe,
 }
 
 #[derive(Clone, Debug)]
@@ -192,16 +193,20 @@ impl Processor {
         match command.as_rule() {
             Rule::execute => {
                 let atoms: Vec<_> = command.into_inner()
-                    .map(|pair| pair.as_span())
-                    .map(|span| {
-                        Atom::new(
-                            AtomKind::Word(String::from(span.as_str())),
-                            span.start(),
-                            span.end()
-                        )
+                    .map(|pair| {
+                        let span = pair.as_span();
+                        let kind = match pair.as_rule() {
+                            Rule::redirect => match span.as_str() {
+                                "|" => AtomKind::Pipe,
+                                _ => unreachable!(),
+                            },
+                            Rule::word => AtomKind::Word(String::from(span.as_str())),
+                            _ => unreachable!(),
+                        };
+                        Atom::new(kind, span.start(), span.end())
                     })
                     .collect();
-                    Command::new(CommandKind::Execute, atoms)
+                Command::new(CommandKind::Execute, atoms)
             },
             Rule::assign => {
                 let atoms: Vec<_> = command.into_inner()
@@ -214,7 +219,7 @@ impl Processor {
                         )
                     })
                     .collect();
-                    Command::new(CommandKind::Assign, atoms)
+                Command::new(CommandKind::Assign, atoms)
             },
             _ => unreachable!(),
         }

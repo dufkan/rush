@@ -5,8 +5,8 @@ use directories::ProjectDirs;
 use nix::sys::stat;
 use termion::event::{Event, Key};
 
-use super::command;
 use super::config::Config;
+use super::executor::{self, Executee, ExecuteeKind};
 use super::processor::{Processor, SequenceKind, CommandKind, Atom, AtomKind};
 
 pub enum Action {
@@ -119,6 +119,18 @@ impl Shell {
         }
     }
 
+    pub fn vars(&self) -> &HashMap<String, String> {
+        &self.vars
+    }
+
+    pub fn bin_dirs(&self) -> &Vec<String> {
+        &self.bin_dirs
+    }
+
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     pub fn process(&mut self) -> usize {
         let sequence = self.processor.get().get();
         self.history.push(self.processor.raw());
@@ -140,50 +152,55 @@ impl Shell {
         retcode
     }
 
-    pub fn vars(&self) -> &HashMap<String, String> {
-        &self.vars
-    }
-
-    pub fn bin_dirs(&self) -> &Vec<String> {
-        &self.bin_dirs
-    }
-
-    pub fn config(&self) -> &Config {
-        &self.config
-    }
-
     fn process_execute(&mut self, atoms: Vec<Atom>) -> usize {
-        let args: Vec<_> = atoms.iter()
-            .map(|atom| {
-                let AtomKind::Word(word) = atom.kind();
-                Some(word)
-            })
-            .filter(Option::is_some)
-            .map(Option::unwrap)
-            .collect();
-        if args.is_empty() {
-            return 0;
+        let mut execs = Vec::new();
+        let mut exec = Vec::new();
+        for atom in atoms {
+            match atom.kind() {
+                AtomKind::Word(word) => exec.push(word),
+                AtomKind::Pipe => {
+                    execs.push(exec);
+                    exec = Vec::new();
+                },
+            }
+        };
+        if !exec.is_empty() {
+            execs.push(exec);
         }
 
-        match args.first().unwrap().as_str() {
-            "cd" => command::cd(&args) as usize,
-            "self" => command::state(&args, &self) as usize,
-            command => {
-                if let Some(bin) = self.find_bin(command) {
-                    command::run(&bin, &args, &self.vars) as usize
-                } else {
-                    eprintln!("rush: Unknown command.");
-                    1
-                }
-            }
+
+        let mut execs: Vec<_> = execs.iter()
+            .map(|words| {
+                let kind = match words[0].as_str() {
+                    "cd" => ExecuteeKind::StrongBuiltin(String::from("cd")),
+                    "state" | "self" => ExecuteeKind::WeakBuiltin(String::from("state")),
+                    other => {
+                        if let Some(path) = self.find_bin(other) {
+                            ExecuteeKind::Binary(path)
+                        } else {
+                            ExecuteeKind::WeakBuiltin(String::from("fail"))
+                        }
+                    }
+                };
+                Executee::new(kind, &words, self.vars())
+            })
+            .collect();
+
+        if execs.len() == 1 {
+            executor::execute_single(&execs[0]) as usize
+        } else {
+            executor::execute_group(&mut execs[..]) as usize
         }
     }
 
     fn process_assign(&mut self, atoms: Vec<Atom>) -> usize {
         let args: Vec<_> = atoms.iter()
             .map(|atom| {
-                let AtomKind::Word(word) = atom.kind();
-                Some(word)
+                if let AtomKind::Word(word) = atom.kind() {
+                    Some(word)
+                } else {
+                    None
+                }
             })
             .filter(Option::is_some)
             .map(Option::unwrap)
