@@ -3,6 +3,7 @@ name = "rush"
 version = "0.1.0"
 authors = ["Antonín Dufka <dufkan@pm.me>"]
 edition = "2018"
+license = "GPLv3"
 
 [dependencies]
 nix = "0.13.0"
@@ -12,3 +13,4 @@ pest_derive = "2.1.0"
 directories = "1.0.2"
 serde = { version = "1.0.90", features = ["derive"] }
 toml = "0.5.0"
+clap = "2.33.0"

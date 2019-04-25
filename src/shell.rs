@@ -1,7 +1,6 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 
-use directories::ProjectDirs;
 use nix::sys::stat;
 use termion::event::{Event, Key};
 
@@ -27,12 +26,17 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new() -> Shell {
-        let config = if let Some(project_dirs) = ProjectDirs::from("", "", "rush") {
-            Config::load(&project_dirs.config_dir().join("config.toml"))
-        } else {
-            Config::default()  
-        };
+    pub fn new(config: Option<&Path>) -> Shell {
+        let config = config
+            .map(|path| {
+                if let Some(config) = Config::load(path) {
+                    config
+                } else {
+                    eprintln!("rush: No config found at {}.", path.to_string_lossy());
+                    Config::default()
+                }
+            })
+            .unwrap_or(Config::default());
 
         let vars = if config.respect_vars {
             std::env::vars().collect()
@@ -92,14 +96,14 @@ impl Shell {
                 Key::Up => {
                     if self.history_idx > 0 && self.history.len() > 0 {
                         self.history_idx -= 1;
-                        self.processor.set(self.history[self.history_idx].clone());
+                        self.processor.set(&self.history[self.history_idx]);
                     }
                     None
                 },
                 Key::Down => {
                     if self.history_idx + 1 < self.history.len() {
                         self.history_idx += 1;
-                        self.processor.set(self.history[self.history_idx].clone());
+                        self.processor.set(&self.history[self.history_idx]);
                     } else {
                         self.history_idx = self.history.len();
                         self.processor.clear()
@@ -221,6 +225,10 @@ impl Shell {
 
     pub fn position(&self) -> usize {
         self.processor.position()
+    }
+
+    pub fn set_line(&mut self, line: &str) {
+        self.processor.set(line);
     }
 
     fn find_bin(&self, command: &str) -> Option<PathBuf> {

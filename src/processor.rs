@@ -51,7 +51,7 @@ impl Processor {
         String::from_iter(self.raw.0.iter().chain(self.raw.1.iter()))
     }
 
-    pub fn set(&mut self, raw: String) {
+    pub fn set(&mut self, raw: &str) {
         self.raw.0 = VecDeque::from_iter(raw.chars());
         self.raw.1.clear();
         self.parse();

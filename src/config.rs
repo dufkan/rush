@@ -13,13 +13,13 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(path: &Path) -> Config {
+    pub fn load(path: &Path) -> Option<Config> {
         if let Ok(config) = fs::read_to_string(path) {
             if let Ok(config) = toml::from_str(&config) {
-                return config;
+                return Some(config);
             }
         }
-        Config::default()
+        None
     }
 
     pub fn to_string(&self) -> String {
