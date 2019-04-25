@@ -7,7 +7,8 @@ use termion::event::{Event, Key};
 
 use super::config::Config;
 use super::executor::{self, Executee, ExecuteeKind};
-use super::processor::{Processor, SequenceKind, CommandKind, Atom, AtomKind};
+use super::processor::{Processor};
+use super::parser::{SequenceKind, CommandKind, Atom, AtomKind};
 
 pub enum Action {
     Process,
@@ -167,7 +168,6 @@ impl Shell {
         if !exec.is_empty() {
             execs.push(exec);
         }
-
 
         let mut execs: Vec<_> = execs.iter()
             .map(|words| {

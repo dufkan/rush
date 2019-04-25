@@ -1,6 +1,6 @@
 WHITESPACE = _{ " " | "\t" | "\n" }
 separator = { ";" | "&&" | "||" }
-redirect = { "|" | ">" | "<" }
+redirect = { "|" }
 word = @{ (!(WHITESPACE | separator | redirect) ~ ANY)+ }
 var = @{ LETTER ~ (LETTER | NUMBER)* }
 

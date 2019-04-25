@@ -1,6 +1,7 @@
 mod config;
 mod builtin;
 mod executor;
+mod parser;
 mod processor;
 mod shell;
 
