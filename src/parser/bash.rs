@@ -70,24 +70,30 @@ fn parse_redirect(redirect: Pair<Rule>) -> AtomKind {
     let redirect = redirect.into_inner().next().unwrap();
     match redirect.as_rule() {
         Rule::pipe => AtomKind::Pipe,
-        Rule::out_fd => {
+        Rule::redirect_fd => {
             let mut params = redirect.into_inner().rev();
             let src = params.next().unwrap().as_str().parse().unwrap();
             let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
-            AtomKind::OutFd(src, dst)
+            AtomKind::Fd(src, dst)
         },
-        Rule::out_file => {
+        Rule::redirect_write => {
             let mut params = redirect.into_inner().rev();
             let file = String::from(params.next().unwrap().as_str());
             let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
-            AtomKind::OutFile(file, fd)
+            AtomKind::FileWrite(file, fd)
         },
-        Rule::in_file => {
+        Rule::redirect_read => {
             let mut params = redirect.into_inner().rev();
             let file = String::from(params.next().unwrap().as_str());
             let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("0").parse().unwrap();
-            AtomKind::InFile(file, fd)
-        }
+            AtomKind::FileRead(file, fd)
+        },
+        Rule::redirect_append => {
+            let mut params = redirect.into_inner().rev();
+            let file = String::from(params.next().unwrap().as_str());
+            let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
+            AtomKind::FileAppend(file, fd)
+        },
         _ => unreachable!()
     }
 }

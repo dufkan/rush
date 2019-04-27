@@ -6,11 +6,12 @@ word = @{ (!non_word ~ ANY)+ }
 var = @{ LETTER ~ (LETTER | NUMBER)* }
 fd = { NUMBER+ }
 pipe = { "|" }
-out_file = ${ fd? ~ ">" ~ WHITESPACE? ~ word }
-out_fd = ${ fd? ~ ">" ~ WHITESPACE? ~ fd }
-in_file = ${ fd? ~ "<" ~ WHITESPACE? ~ word }
+redirect_fd = ${ fd? ~ ">" ~ WHITESPACE? ~ fd }
+redirect_write = ${ fd? ~ ">" ~ WHITESPACE? ~ word }
+redirect_append = ${ fd? ~ ">>" ~ WHITESPACE? ~ word }
+redirect_read = ${ fd? ~ "<" ~ WHITESPACE? ~ word }
 
-redirect = { pipe | out_fd | out_file | in_file }
+redirect = { pipe | redirect_fd | redirect_append | redirect_write | redirect_read }
 
 assign = ${ var ~ "=" ~ word }
 execute = { (redirect | word)+ }

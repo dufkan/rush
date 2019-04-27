@@ -21,8 +21,9 @@ pub enum ExecuteeKind {
 
 pub enum RedirectKind {
     Fd(RawFd),
-    FileRead(String),
-    FileWrite(String),
+    Read(String),
+    Write(String),
+    Append(String),
 }
 
 pub struct Executee {
@@ -58,12 +59,16 @@ impl Executee {
         self.redirect(RedirectKind::Fd(src), dst);
     }
 
-    pub fn out_file(&mut self, file: String, fd: RawFd) {
-        self.redirect(RedirectKind::FileWrite(file), fd);
+    pub fn file_write(&mut self, file: String, fd: RawFd) {
+        self.redirect(RedirectKind::Write(file), fd);
     }
 
-    pub fn in_file(&mut self, file: String, fd: RawFd) {
-        self.redirect(RedirectKind::FileRead(file), fd);
+    pub fn file_read(&mut self, file: String, fd: RawFd) {
+        self.redirect(RedirectKind::Read(file), fd);
+    }
+
+    pub fn file_append(&mut self, file: String, fd: RawFd) {
+        self.redirect(RedirectKind::Append(file), fd);
     }
 
     pub fn args(&self) -> &Vec<String> {
@@ -90,7 +95,7 @@ fn execute(executee: &Executee) -> ! {
     for redirect in &executee.redirect {
         let src = match &redirect.0 {
             RedirectKind::Fd(fd) => *fd,
-            RedirectKind::FileWrite(file) => {
+            RedirectKind::Write(file) => {
                 let mut oflag = OFlag::empty();
                 oflag.insert(OFlag::O_WRONLY);
                 oflag.insert(OFlag::O_CREAT);
@@ -105,10 +110,25 @@ fn execute(executee: &Executee) -> ! {
                     process::exit(1 as i32);
                 })
             },
-            RedirectKind::FileRead(file) => {
+            RedirectKind::Read(file) => {
                 let mut oflag = OFlag::empty();
                 oflag.insert(OFlag::O_RDONLY);
                 let mode = Mode::empty();
+                fcntl::open(file.as_str(), oflag, mode).unwrap_or_else(|_| {
+                    eprintln!("rush: Could not open file {}.", file);
+                    process::exit(1 as i32);
+                })
+            },
+            RedirectKind::Append(file) => {
+                let mut oflag = OFlag::empty();
+                oflag.insert(OFlag::O_WRONLY);
+                oflag.insert(OFlag::O_CREAT);
+                oflag.insert(OFlag::O_APPEND);
+                let mut mode = Mode::empty();
+                mode.insert(Mode::S_IWUSR);
+                mode.insert(Mode::S_IRUSR);
+                mode.insert(Mode::S_IRGRP);
+                mode.insert(Mode::S_IROTH);
                 fcntl::open(file.as_str(), oflag, mode).unwrap_or_else(|_| {
                     eprintln!("rush: Could not open file {}.", file);
                     process::exit(1 as i32);
