@@ -1,11 +1,18 @@
 WHITESPACE = _{ " " | "\t" | "\n" }
 separator = { ";" | "&&" | "||" }
-redirect = { "|" }
-word = @{ (!(WHITESPACE | separator | redirect) ~ ANY)+ }
+non_word = _{ WHITESPACE | separator | "|" | ">" | "<" } 
+
+word = @{ (!non_word ~ ANY)+ }
 var = @{ LETTER ~ (LETTER | NUMBER)* }
+fd = { NUMBER+ }
+pipe = { "|" }
+out_file = ${ fd? ~ ">" ~ WHITESPACE? ~ word }
+out_fd = ${ fd? ~ ">" ~ WHITESPACE? ~ fd }
+
+redirect = { pipe | out_fd | out_file }
 
 assign = ${ var ~ "=" ~ word }
-execute = { word ~ (redirect? ~ word)* }
+execute = { (redirect | word)+ }
 
 command = { (assign | execute) }
 line = _{ SOI ~ command ~ (separator ~ command)* ~ ";"? ~ EOI }

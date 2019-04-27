@@ -77,3 +77,7 @@ pub fn fail(args: &[String]) -> u8 {
     eprintln!("rush: Unknown command {}.", args[0]);
     1
 }
+
+pub fn void() -> u8 {
+    0
+}

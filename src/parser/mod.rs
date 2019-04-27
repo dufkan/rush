@@ -1,9 +1,13 @@
 pub mod bash;
 
+use std::os::unix::io::RawFd;
+
 #[derive(Clone, Debug)]
 pub enum AtomKind {
     Word(String),
     Pipe,
+    OutFd(RawFd, RawFd),
+    OutFile(String, RawFd),
 }
 
 #[derive(Clone, Debug)]

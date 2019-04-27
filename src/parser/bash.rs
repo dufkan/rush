@@ -40,10 +40,7 @@ fn parse_command(command: Pair<Rule>) -> Command {
                 .map(|pair| {
                     let span = pair.as_span();
                     let kind = match pair.as_rule() {
-                        Rule::redirect => match span.as_str() {
-                            "|" => AtomKind::Pipe,
-                            _ => unreachable!(),
-                        },
+                        Rule::redirect => parse_redirect(pair),
                         Rule::word => AtomKind::Word(String::from(span.as_str())),
                         _ => unreachable!(),
                     };
@@ -66,6 +63,26 @@ fn parse_command(command: Pair<Rule>) -> Command {
             Command::new(CommandKind::Assign, atoms)
         },
         _ => unreachable!(),
+    }
+}
+
+fn parse_redirect(redirect: Pair<Rule>) -> AtomKind {
+    let redirect = redirect.into_inner().next().unwrap();
+    match redirect.as_rule() {
+        Rule::pipe => AtomKind::Pipe,
+        Rule::out_fd => {
+            let mut params = redirect.into_inner().rev();
+            let src = params.next().unwrap().as_str().parse().unwrap();
+            let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
+            AtomKind::OutFd(src, dst)
+        },
+        Rule::out_file => {
+            let mut params = redirect.into_inner().rev();
+            let src = String::from(params.next().unwrap().as_str());
+            let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
+            AtomKind::OutFile(src, dst)
+        }
+        _ => unreachable!()
     }
 }
 

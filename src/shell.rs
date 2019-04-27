@@ -159,24 +159,25 @@ impl Shell {
 
     fn process_execute(&mut self, atoms: Vec<Atom>) -> usize {
         let mut execs = Vec::new();
-        let mut exec = Vec::new();
+        let mut exec = Executee::new();
         for atom in atoms {
             match atom.kind() {
-                AtomKind::Word(word) => exec.push(word),
+                AtomKind::Word(word) => exec.arg(word),
                 AtomKind::Pipe => {
                     execs.push(exec);
-                    exec = Vec::new();
+                    exec = Executee::new();
                 },
-                _ => ()
+                AtomKind::OutFd(src, dst) => exec.redirect_fd(src, dst),
+                AtomKind::OutFile(src, dst) => exec.out_file(src, dst)
             }
         };
-        if !exec.is_empty() {
-            execs.push(exec);
-        }
+        execs.push(exec);
 
-        let mut execs: Vec<_> = execs.iter()
-            .map(|words| {
-                let kind = match words[0].as_str() {
+        for exec in &mut execs {
+            let command = exec.args().first();
+            if command.is_some() {
+                let command = command.unwrap();
+                exec.set_kind(match command.as_str() {
                     "cd" => ExecuteeKind::StrongBuiltin(String::from("cd")),
                     "state" | "self" => ExecuteeKind::WeakBuiltin(String::from("state")),
                     other => {
@@ -186,10 +187,9 @@ impl Shell {
                             ExecuteeKind::WeakBuiltin(String::from("fail"))
                         }
                     }
-                };
-                Executee::new(kind, &words, self.vars())
-            })
-            .collect();
+                });
+            }
+        }
 
         if execs.len() == 1 {
             executor::execute_single(&execs[0]) as usize
