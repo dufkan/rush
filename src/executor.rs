@@ -21,7 +21,8 @@ pub enum ExecuteeKind {
 
 pub enum RedirectKind {
     Fd(RawFd),
-    File(String),
+    FileRead(String),
+    FileWrite(String),
 }
 
 pub struct Executee {
@@ -57,8 +58,12 @@ impl Executee {
         self.redirect(RedirectKind::Fd(src), dst);
     }
 
-    pub fn out_file(&mut self, src: String, dst: RawFd) {
-        self.redirect(RedirectKind::File(src), dst);
+    pub fn out_file(&mut self, file: String, fd: RawFd) {
+        self.redirect(RedirectKind::FileWrite(file), fd);
+    }
+
+    pub fn in_file(&mut self, file: String, fd: RawFd) {
+        self.redirect(RedirectKind::FileRead(file), fd);
     }
 
     pub fn args(&self) -> &Vec<String> {
@@ -85,7 +90,7 @@ fn execute(executee: &Executee) -> ! {
     for redirect in &executee.redirect {
         let src = match &redirect.0 {
             RedirectKind::Fd(fd) => *fd,
-            RedirectKind::File(file) => {
+            RedirectKind::FileWrite(file) => {
                 let mut oflag = OFlag::empty();
                 oflag.insert(OFlag::O_WRONLY);
                 oflag.insert(OFlag::O_CREAT);
@@ -96,7 +101,16 @@ fn execute(executee: &Executee) -> ! {
                 mode.insert(Mode::S_IRGRP);
                 mode.insert(Mode::S_IROTH);
                 fcntl::open(file.as_str(), oflag, mode).unwrap_or_else(|_| {
-                    eprintln!("rush: Could not open file \"{}\".", file);
+                    eprintln!("rush: Could not open file {}.", file);
+                    process::exit(1 as i32);
+                })
+            },
+            RedirectKind::FileRead(file) => {
+                let mut oflag = OFlag::empty();
+                oflag.insert(OFlag::O_RDONLY);
+                let mode = Mode::empty();
+                fcntl::open(file.as_str(), oflag, mode).unwrap_or_else(|_| {
+                    eprintln!("rush: Could not open file {}.", file);
                     process::exit(1 as i32);
                 })
             }

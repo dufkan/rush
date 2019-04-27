@@ -8,6 +8,7 @@ pub enum AtomKind {
     Pipe,
     OutFd(RawFd, RawFd),
     OutFile(String, RawFd),
+    InFile(String, RawFd),
 }
 
 #[derive(Clone, Debug)]

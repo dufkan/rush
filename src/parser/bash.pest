@@ -8,8 +8,9 @@ fd = { NUMBER+ }
 pipe = { "|" }
 out_file = ${ fd? ~ ">" ~ WHITESPACE? ~ word }
 out_fd = ${ fd? ~ ">" ~ WHITESPACE? ~ fd }
+in_file = ${ fd? ~ "<" ~ WHITESPACE? ~ word }
 
-redirect = { pipe | out_fd | out_file }
+redirect = { pipe | out_fd | out_file | in_file }
 
 assign = ${ var ~ "=" ~ word }
 execute = { (redirect | word)+ }

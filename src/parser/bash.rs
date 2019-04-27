@@ -78,9 +78,15 @@ fn parse_redirect(redirect: Pair<Rule>) -> AtomKind {
         },
         Rule::out_file => {
             let mut params = redirect.into_inner().rev();
-            let src = String::from(params.next().unwrap().as_str());
-            let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
-            AtomKind::OutFile(src, dst)
+            let file = String::from(params.next().unwrap().as_str());
+            let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
+            AtomKind::OutFile(file, fd)
+        },
+        Rule::in_file => {
+            let mut params = redirect.into_inner().rev();
+            let file = String::from(params.next().unwrap().as_str());
+            let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("0").parse().unwrap();
+            AtomKind::InFile(file, fd)
         }
         _ => unreachable!()
     }

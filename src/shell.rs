@@ -168,7 +168,8 @@ impl Shell {
                     exec = Executee::new();
                 },
                 AtomKind::OutFd(src, dst) => exec.redirect_fd(src, dst),
-                AtomKind::OutFile(src, dst) => exec.out_file(src, dst)
+                AtomKind::OutFile(file, fd) => exec.out_file(file, fd),
+                AtomKind::InFile(file, fd) => exec.in_file(file, fd)
             }
         };
         execs.push(exec);
