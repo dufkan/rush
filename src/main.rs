@@ -2,7 +2,7 @@ mod config;
 mod builtin;
 mod executor;
 mod parser;
-mod processor;
+mod input;
 mod shell;
 
 use std::path::PathBuf;

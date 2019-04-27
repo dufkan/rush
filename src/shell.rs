@@ -6,7 +6,7 @@ use termion::event::{Event, Key};
 
 use super::config::Config;
 use super::executor::{self, Executee, ExecuteeKind};
-use super::processor::{Processor};
+use super::input::Input;
 use super::parser::{SequenceKind, CommandKind, Atom, AtomKind};
 
 pub enum Action {
@@ -20,7 +20,7 @@ pub struct Shell {
     bin_dirs: Vec<String>,
     history: Vec<String>,
     history_idx: usize,
-    processor: Processor,
+    input: Input,
     prompt: String,
     vars: HashMap<String, String>,
 }
@@ -59,7 +59,7 @@ impl Shell {
             bin_dirs,
             history: Vec::new(),
             history_idx: 1,
-            processor: Processor::new(),
+            input: Input::new(),
             prompt,
             vars
         }
@@ -70,52 +70,52 @@ impl Shell {
             Event::Key(key) => match key {
                 Key::Char('\n') => Some(Action::Process),
                 Key::Char(c) => {
-                    self.processor.push(*c);
+                    self.input.push(*c);
                     None
                 },
                 Key::Ctrl('c') => {
-                    self.processor.clear();
+                    self.input.clear();
                     None
                 },
                 Key::Ctrl('d') => {
-                    if self.processor.is_empty() {
+                    if self.input.is_empty() {
                         Some(Action::Exit)
                     } else {
                         None
                     }
                 },
                 Key::Backspace => {
-                    self.processor.pop_prev();
+                    self.input.pop_prev();
                     None
                 },
                 Key::Delete => {
-                    self.processor.pop_next();
+                    self.input.pop_next();
                     None
                 },
                 Key::Ctrl('l') => Some(Action::ClearScreen),
                 Key::Up => {
                     if self.history_idx > 0 && self.history.len() > 0 {
                         self.history_idx -= 1;
-                        self.processor.set(&self.history[self.history_idx]);
+                        self.input.set(&self.history[self.history_idx]);
                     }
                     None
                 },
                 Key::Down => {
                     if self.history_idx + 1 < self.history.len() {
                         self.history_idx += 1;
-                        self.processor.set(&self.history[self.history_idx]);
+                        self.input.set(&self.history[self.history_idx]);
                     } else {
                         self.history_idx = self.history.len();
-                        self.processor.clear()
+                        self.input.clear()
                     }
                     None
                 },
                 Key::Left => {
-                    self.processor.left();
+                    self.input.left();
                     None
                 },
                 Key::Right => {
-                    self.processor.right();
+                    self.input.right();
                     None
                 }
                 _ => None,
@@ -137,10 +137,10 @@ impl Shell {
     }
 
     pub fn process(&mut self) -> usize {
-        let sequence = self.processor.get().get();
-        self.history.push(self.processor.raw());
+        let sequence = self.input.get().get();
+        self.history.push(self.input.raw());
         self.history_idx = self.history.len();
-        self.processor.clear();
+        self.input.clear();
 
         let mut retcode = 0;
         for command in sequence {
@@ -167,6 +167,7 @@ impl Shell {
                     execs.push(exec);
                     exec = Vec::new();
                 },
+                _ => ()
             }
         };
         if !exec.is_empty() {
@@ -220,15 +221,15 @@ impl Shell {
     }
 
     pub fn line(&self) -> String {
-        self.processor.raw()
+        self.input.raw()
     }
 
     pub fn position(&self) -> usize {
-        self.processor.position()
+        self.input.position()
     }
 
     pub fn set_line(&mut self, line: &str) {
-        self.processor.set(line);
+        self.input.set(line);
     }
 
     fn find_bin(&self, command: &str) -> Option<PathBuf> {

@@ -3,14 +3,14 @@ use std::iter::{Iterator, FromIterator};
 
 use super::parser::{bash, Sequence};
 
-pub struct Processor {
+pub struct Input {
     raw: (VecDeque<char>, VecDeque<char>),
     parsed: Sequence,
 }
 
-impl Processor {
-    pub fn new() -> Processor {
-        Processor { 
+impl Input {
+    pub fn new() -> Input {
+        Input { 
             raw: (VecDeque::new(), VecDeque::new()),
             parsed: Sequence::new()
         }
@@ -79,7 +79,7 @@ impl Processor {
         self.raw.1.len()
     }
 
-    pub fn parse(&mut self) {
+    fn parse(&mut self) {
         self.parsed = bash::parse(self.raw())
     }
 }
