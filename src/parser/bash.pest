@@ -1,20 +1,42 @@
 WHITESPACE = _{ " " | "\t" | "\n" }
 separator = { ";" | "&&" | "||" }
-non_word = _{ WHITESPACE | separator | "|" | ">" | "<" } 
+non_word = _{ WHITESPACE | separator | "|" | ">" | "<" | "&" } 
 
 word = @{ (!non_word ~ ANY)+ }
 var = @{ LETTER ~ (LETTER | NUMBER)* }
 fd = { NUMBER+ }
-pipe = { "|" }
-redirect_fd = ${ fd? ~ ">" ~ WHITESPACE? ~ fd }
-redirect_write = ${ fd? ~ ">" ~ WHITESPACE? ~ word }
-redirect_append = ${ fd? ~ ">>" ~ WHITESPACE? ~ word }
-redirect_read = ${ fd? ~ "<" ~ WHITESPACE? ~ word }
 
-redirect = { pipe | redirect_fd | redirect_append | redirect_write | redirect_read }
+pipe = { "|" }
+
+redirect_std_write = ${ ("&>" | ">&") ~ WHITESPACE* ~ word }
+redirect_std_append = ${ "&>>" ~ WHITESPACE* ~ word }
+
+redirect_move_out = ${ fd? ~ ">&" ~ WHITESPACE* ~ fd ~ "-" }
+redirect_move_in = ${ fd? ~ "<&" ~ WHITESPACE* ~ fd ~ "-" }
+
+redirect_duplicate_out = ${ fd? ~ ">&" ~ WHITESPACE* ~ fd }
+redirect_duplicate_in = ${ fd? ~ "<&" ~ WHITESPACE* ~ fd }
+
+redirect_rw = ${ fd? ~ "<>" ~ WHITESPACE* ~ word }
+redirect_append = ${ fd? ~ ">>" ~ WHITESPACE* ~ word }
+redirect_write = ${ fd? ~ ">" ~ WHITESPACE* ~ word }
+redirect_read = ${ fd? ~ "<" ~ WHITESPACE* ~ word }
+
+redirect = { 
+    redirect_std_write |
+    redirect_std_append |
+    redirect_move_out | 
+    redirect_move_in | 
+    redirect_duplicate_out | 
+    redirect_duplicate_in | 
+    redirect_rw |
+    redirect_write |
+    redirect_append | 
+    redirect_read 
+}
 
 assign = ${ var ~ "=" ~ word }
-execute = { (redirect | word)+ }
+execute = { (pipe | redirect | word)+ }
 
 command = { (assign | execute) }
 line = _{ SOI ~ command ~ (separator ~ command)* ~ ";"? ~ EOI }

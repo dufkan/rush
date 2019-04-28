@@ -42,6 +42,7 @@ fn parse_command(command: Pair<Rule>) -> Command {
                     let kind = match pair.as_rule() {
                         Rule::redirect => parse_redirect(pair),
                         Rule::word => AtomKind::Word(String::from(span.as_str())),
+                        Rule::pipe => AtomKind::Pipe,
                         _ => unreachable!(),
                     };
                     Atom::new(kind, span.start(), span.end())
@@ -69,12 +70,29 @@ fn parse_command(command: Pair<Rule>) -> Command {
 fn parse_redirect(redirect: Pair<Rule>) -> AtomKind {
     let redirect = redirect.into_inner().next().unwrap();
     match redirect.as_rule() {
-        Rule::pipe => AtomKind::Pipe,
-        Rule::redirect_fd => {
+        Rule::redirect_move_in => {
+            let mut params = redirect.into_inner().rev();
+            let src = params.next().unwrap().as_str().parse().unwrap();
+            let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("0").parse().unwrap();
+            AtomKind::FdMov(src, dst)
+        },
+        Rule::redirect_move_out => {
             let mut params = redirect.into_inner().rev();
             let src = params.next().unwrap().as_str().parse().unwrap();
             let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
-            AtomKind::Fd(src, dst)
+            AtomKind::FdMov(src, dst)
+        },
+        Rule::redirect_duplicate_in => {
+            let mut params = redirect.into_inner().rev();
+            let src = params.next().unwrap().as_str().parse().unwrap();
+            let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("0").parse().unwrap();
+            AtomKind::FdDup(src, dst)
+        },
+        Rule::redirect_duplicate_out => {
+            let mut params = redirect.into_inner().rev();
+            let src = params.next().unwrap().as_str().parse().unwrap();
+            let dst = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
+            AtomKind::FdDup(src, dst)
         },
         Rule::redirect_write => {
             let mut params = redirect.into_inner().rev();
@@ -93,6 +111,20 @@ fn parse_redirect(redirect: Pair<Rule>) -> AtomKind {
             let file = String::from(params.next().unwrap().as_str());
             let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("1").parse().unwrap();
             AtomKind::FileAppend(file, fd)
+        },
+        Rule::redirect_rw => {
+            let mut params = redirect.into_inner().rev();
+            let file = String::from(params.next().unwrap().as_str());
+            let fd = params.next().as_ref().map(Pair::as_str).unwrap_or("0").parse().unwrap();
+            AtomKind::FileRW(file, fd)
+        },
+        Rule::redirect_std_write => {
+            let file = String::from(redirect.into_inner().next().unwrap().as_str());
+            AtomKind::StdWrite(file)
+        },
+        Rule::redirect_std_append => {
+            let file = String::from(redirect.into_inner().next().unwrap().as_str());
+            AtomKind::StdAppend(file)
         },
         _ => unreachable!()
     }

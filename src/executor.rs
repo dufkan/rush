@@ -20,10 +20,12 @@ pub enum ExecuteeKind {
 }
 
 pub enum RedirectKind {
-    Fd(RawFd),
+    Dup(RawFd),
+    Mov(RawFd),
     Read(String),
     Write(String),
     Append(String),
+    RW(String),
 }
 
 pub struct Executee {
@@ -55,8 +57,12 @@ impl Executee {
         self.redirect.push((src, dst));
     }
 
-    pub fn redirect_fd(&mut self, src: RawFd, dst: RawFd) {
-        self.redirect(RedirectKind::Fd(src), dst);
+    pub fn fd_duplicate(&mut self, src: RawFd, dst: RawFd) {
+        self.redirect(RedirectKind::Dup(src), dst);
+    }
+
+    pub fn fd_move(&mut self, src: RawFd, dst: RawFd) {
+        self.redirect(RedirectKind::Mov(src), dst);
     }
 
     pub fn file_write(&mut self, file: String, fd: RawFd) {
@@ -69,6 +75,10 @@ impl Executee {
 
     pub fn file_append(&mut self, file: String, fd: RawFd) {
         self.redirect(RedirectKind::Append(file), fd);
+    }
+
+    pub fn file_rw(&mut self, file: String, fd: RawFd) {
+        self.redirect(RedirectKind::RW(file), fd);
     }
 
     pub fn args(&self) -> &Vec<String> {
@@ -93,8 +103,13 @@ impl Executee {
 fn execute(executee: &Executee) -> ! {
     unsafe { signal::signal(Signal::SIGINT, SigHandler::SigDfl) }.unwrap();
     for redirect in &executee.redirect {
+        let mut close_src = false;
         let src = match &redirect.0 {
-            RedirectKind::Fd(fd) => *fd,
+            RedirectKind::Dup(fd) => *fd,
+            RedirectKind::Mov(fd) => {
+                close_src = true;
+                *fd
+            },
             RedirectKind::Write(file) => {
                 let mut oflag = OFlag::empty();
                 oflag.insert(OFlag::O_WRONLY);
@@ -133,10 +148,28 @@ fn execute(executee: &Executee) -> ! {
                     eprintln!("rush: Could not open file {}.", file);
                     process::exit(1 as i32);
                 })
-            }
+            },
+            RedirectKind::RW(file) => {
+                let mut oflag = OFlag::empty();
+                oflag.insert(OFlag::O_RDWR);
+                oflag.insert(OFlag::O_CREAT);
+                oflag.insert(OFlag::O_TRUNC);
+                let mut mode = Mode::empty();
+                mode.insert(Mode::S_IWUSR);
+                mode.insert(Mode::S_IRUSR);
+                mode.insert(Mode::S_IRGRP);
+                mode.insert(Mode::S_IROTH);
+                fcntl::open(file.as_str(), oflag, mode).unwrap_or_else(|_| {
+                    eprintln!("rush: Could not open file {}.", file);
+                    process::exit(1 as i32);
+                })
+            },
         };
         let dst = redirect.1;
         unistd::dup2(src, dst).unwrap();
+        if close_src {
+            unistd::close(src).unwrap();
+        }
     }
     match executee.kind.clone() {
         ExecuteeKind::WeakBuiltin(name) => {
@@ -199,7 +232,7 @@ pub fn execute_group(executees: &mut [Executee]) -> u8 {
             
             for i in 0..(executees.len() - 1) {
                 let pipe = unistd::pipe().unwrap();
-                executees[i].redirect_fd(pipe.1, 1);
+                executees[i].fd_duplicate(pipe.1, 1);
                 if let Ok(ForkResult::Child) = fork() {
                     execute(&executees[i]);
                 }

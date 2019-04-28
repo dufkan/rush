@@ -6,10 +6,14 @@ use std::os::unix::io::RawFd;
 pub enum AtomKind {
     Word(String),
     Pipe,
-    Fd(RawFd, RawFd),
+    FdDup(RawFd, RawFd),
+    FdMov(RawFd, RawFd),
     FileRead(String, RawFd),
     FileWrite(String, RawFd),
-    FileAppend(String, RawFd)
+    FileAppend(String, RawFd),
+    FileRW(String, RawFd),
+    StdWrite(String),
+    StdAppend(String),
 }
 
 #[derive(Clone, Debug)]
