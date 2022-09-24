@@ -12,6 +12,7 @@ use std::sync::atomic::{self, AtomicU32};
 
 use nix::sys::signal::{self, Signal, SigHandler};
 use directories::ProjectDirs;
+use clap::Parser;
 
 use shell::{Action, Shell};
 use termion::input::TermRead;
@@ -107,26 +108,20 @@ fn execute(command: &str) {
     exit(shell.process() as i32);
 }
 
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    command: Option<String>,
+
+    #[clap(long)]
+    config: Option<String>,
+}
+
 fn main() {
-    use clap::{App, Arg, crate_authors, crate_description, crate_version};
+    let args = Args::parse();
 
-    let matches = App::new("rush")
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about(crate_description!())
-        .arg(Arg::with_name("command")
-            .short("c")
-            .long("command")
-            .value_name("COMMAND")
-            .help("Executes COMMAND")
-            .takes_value(true))
-        .arg(Arg::with_name("config")
-            .long("config")
-            .value_name("CONFIG")
-            .help("Use CONFIG file"))
-        .get_matches();
-
-    let config = matches.value_of("config").map(PathBuf::from).or({
+    let config = args.config.map(PathBuf::from).or({
         if let Some(path) = ProjectDirs::from("", "", "rush") {
             Some(path.config_dir().join("config.toml"))
         } else {
@@ -136,8 +131,8 @@ fn main() {
 
     unsafe { SHELL = Some(Shell::new(config.as_ref().map(PathBuf::as_path))) };
 
-    if let Some(command) = matches.value_of("command") {
-        execute(command);
+    if let Some(command) = args.command {
+        execute(&command);
     } else {
         interactive();
     }

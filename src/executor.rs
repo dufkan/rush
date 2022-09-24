@@ -196,7 +196,7 @@ pub fn execute_single(executee: &Executee) -> u8 {
             _ => 1
         }
     } else {
-        match unistd::fork() {
+        match unsafe { unistd::fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 let status = wait::waitpid(child, None).unwrap();
                 match status {
@@ -217,7 +217,7 @@ pub fn execute_single(executee: &Executee) -> u8 {
 }
 
 pub fn execute_group(executees: &mut [Executee]) -> u8 {
-    match unistd::fork() {
+    match unsafe { unistd::fork() } {
         Ok(ForkResult::Parent { child, .. }) => {
             let status = wait::waitpid(child, None).unwrap();
             match status {
@@ -233,7 +233,7 @@ pub fn execute_group(executees: &mut [Executee]) -> u8 {
             for i in 0..(executees.len() - 1) {
                 let pipe = unistd::pipe().unwrap();
                 executees[i].fd_duplicate(pipe.1, 1);
-                if let Ok(ForkResult::Child) = fork() {
+                if let Ok(ForkResult::Child) = unsafe { fork() } {
                     execute(&executees[i]);
                 }
                 unistd::close(pipe.1).unwrap();
